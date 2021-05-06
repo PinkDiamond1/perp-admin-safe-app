@@ -1,11 +1,15 @@
-import { Text, Title, Link, TextField } from '@gnosis.pm/safe-react-components';
-import React, { useState, useCallback } from 'react';
+import { Title, Select } from '@gnosis.pm/safe-react-components';
+import React, { useState, useEffect } from 'react';
 import { useSafeAppsSDK } from '@gnosis.pm/safe-apps-react-sdk';
 import styled from 'styled-components';
 
 import { ContractInterface } from '../hooks/useServices/interfaceRepository';
 import useServices from '../hooks/useServices';
 import { Builder } from './Builder';
+import useMetadata, { Stage } from '../hooks/useMetadata';
+import { SelectItem } from '@gnosis.pm/safe-react-components/dist/inputs/Select';
+import useContractList, { Layer } from '../hooks/useContractList';
+import useAbi from '../hooks/useAbi';
 
 const Wrapper = styled.div`
   display: flex;
@@ -20,81 +24,82 @@ const StyledTitle = styled(Title)`
   margin-bottom: 5px;
 `;
 
-const StyledText = styled(Text)`
-  margin-bottom: 15px;
-`;
-
-const StyledTextFiled = styled(TextField)`
-  && {
-    width: 520px;
-  }
+const StyledSelect = styled(Select)`
+  width: 520px;
+  margin-bottom: 5px;
 `;
 
 const Dashboard = () => {
   const { safe } = useSafeAppsSDK();
   const services = useServices(safe.network);
-
-  const [addressOrAbiInput, setAddressOrAbiInput] = useState('');
   const [contract, setContract] = useState<ContractInterface | null>(null);
-  const [loadAbiError, setLoadAbiError] = useState(false);
+  const [stage, setStage] = useState<Stage>(Stage.Production);
+  const [layer, setLayer] = useState<Layer>(Layer.Layer2);
+  const [contractName, setContractName] = useState<string>('');
+  const [contractAddress, setContractAddress] = useState<string>('');
+  const abi = useAbi(contractName);
+  const metadata = useMetadata(stage);
+  const contractList = useContractList(metadata, layer);
+  const stageItems = [Stage.Production, Stage.Staging].map((stage) => ({ id: stage, label: stage }));
+  const layerItems = [Layer.Layer1, Layer.Layer2].map((layer) => ({ id: layer, label: layer }));
+  const contractItems: SelectItem[] = contractList.map((contractInfo) => ({
+    id: contractInfo.address,
+    label: `${contractInfo.key} - ${contractInfo.address}`,
+  }));
 
-  const handleAddressOrABIInput = async (e: React.ChangeEvent<HTMLInputElement>): Promise<ContractInterface | void> => {
-    setContract(null);
-    setLoadAbiError(false);
-
-    const cleanInput = e.currentTarget?.value?.trim();
-    setAddressOrAbiInput(cleanInput);
-
-    if (!cleanInput.length || !services.web3 || !services.interfaceRepo) {
-      return;
+  const onStageSelect = (strStage: string) => {
+    if (strStage !== Stage.Production && strStage !== Stage.Staging) {
+      throw new Error('stage not found');
     }
+    setStage(strStage);
+  };
 
-    try {
-      const contract = await services.interfaceRepo.loadAbi(cleanInput);
-      setContract(contract);
-    } catch (e) {
-      setContract(null);
-      setLoadAbiError(true);
-      console.error(e);
+  const onLayerSelect = (strLayer: string) => {
+    if (strLayer !== Layer.Layer1 && strLayer !== Layer.Layer2) {
+      throw new Error('layer not found');
+    }
+    setLayer(strLayer);
+    setContractName('');
+    setContractAddress('');
+  };
+
+  const onContractSelect = (contractAddress: string) => {
+    const contractInfo = contractList.find((contractInfo) => contractInfo.address === contractAddress);
+
+    if (contractInfo) {
+      setContractName(contractInfo.name);
+      setContractAddress(contractInfo.address);
     }
   };
 
-  const isValidAddress = useCallback(
-    (address: string | null) => {
-      if (!address) {
-        return false;
+  useEffect(() => {
+    async function loadContract() {
+      if (!abi || !services.web3 || !services.interfaceRepo) {
+        return;
       }
-      return services?.web3?.utils.isAddress(address);
-    },
-    [services.web3],
-  );
+
+      try {
+        const contract = await services.interfaceRepo.loadAbi(JSON.stringify(abi));
+        setContract(contract);
+      } catch (e) {
+        setContract(null);
+        console.error(e);
+      }
+    }
+
+    loadContract();
+  }, [abi, stage, services.interfaceRepo, services.web3]);
 
   return (
     <Wrapper>
-      <StyledTitle size="sm">Multisend transaction builder</StyledTitle>
-      <StyledText size="sm">
-        This app allows you to build a custom multisend transaction. Enter a Ethereum contract address or ABI to get
-        started.{' '}
-        <Link
-          href="https://help.gnosis-safe.io/en/articles/4680071-create-a-batched-transaction-with-the-transaction-builder-safe-app"
-          size="lg"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Learn how to use the transaction builder.
-        </Link>
-      </StyledText>
+      <StyledTitle size="sm">Perpetual Protocol Admin UI</StyledTitle>
 
-      {/* ABI Input */}
-      <StyledTextFiled value={addressOrAbiInput} label="Enter Address or ABI" onChange={handleAddressOrABIInput} />
-      {loadAbiError && (
-        <Text color="warning" size="lg">
-          No ABI found for this address
-        </Text>
-      )}
+      <StyledSelect items={stageItems} activeItemId={stage} onItemClick={onStageSelect}></StyledSelect>
+      <StyledSelect items={layerItems} activeItemId={layer} onItemClick={onLayerSelect}></StyledSelect>
+      <StyledSelect items={contractItems} activeItemId={contractAddress} onItemClick={onContractSelect}></StyledSelect>
 
       {/* Builder */}
-      {(isValidAddress(addressOrAbiInput) || contract) && <Builder contract={contract} to={addressOrAbiInput} />}
+      {contractAddress && contract && <Builder contract={contract} to={contractAddress} />}
     </Wrapper>
   );
 };
