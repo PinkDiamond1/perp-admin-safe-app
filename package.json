@@ -4,7 +4,7 @@
   "scripts": {
     "postinstall": "ts-node --project tsconfig.ts-node.json scripts/copy-artifacts.ts",
     "start:compound": "yarn workspace compound start",
-    "start:tx-builder": "yarn workspace tx-builder start",
+    "start:perp-admin": "yarn workspace perp-admin start",
     "start:walletconnect": "yarn workspace wallet-connect start",
     "start:drain-safe": "yarn workspace drain-safe start",
     "build": "yarn workspaces run build",

@@ -1,3 +1,4 @@
+import { Big } from 'big.js';
 import React, { useState, useEffect, ReactElement, useCallback } from 'react';
 import {
   Button,
@@ -50,10 +51,33 @@ type Props = {
 const getInputHelper = (input: any) => {
   // This code renders a helper for the input text.
   if (input.type.startsWith('tuple')) {
-    return `tuple(${input.components.map((c: any) => c.internalType).toString()})${input.type.endsWith('[]') ? '[]' : ''
-      }`;
+    return `tuple(${input.components.map((c: any) => c.internalType).toString()})${
+      input.type.endsWith('[]') ? '[]' : ''
+    }`;
   } else {
     return input.type;
+  }
+};
+
+const formatValue = (value: any): any => {
+  if (Array.isArray(value)) {
+    return value.map((obj) => formatValue(obj));
+  } else {
+    try {
+      const big = new Big(value);
+      return big.div(new Big(10).pow(18)).toFixed();
+    } catch {
+      return value;
+    }
+  }
+};
+
+const getFormattedValue = (value: string): string => {
+  try {
+    const json = JSON.parse(value);
+    return JSON.stringify(formatValue(json));
+  } catch {
+    return '';
   }
 };
 
@@ -169,7 +193,9 @@ export const Builder = ({ contract, to }: Props): ReactElement | null => {
         return false;
       }
       return services?.web3?.utils.isAddress(address);
-    }, [services.web3]);
+    },
+    [services.web3],
+  );
 
   const sendTransactions = async () => {
     if (!transactions.length) {
@@ -273,6 +299,7 @@ export const Builder = ({ contract, to }: Props): ReactElement | null => {
                     handleInput(index, e.target.value);
                   }}
                 />
+                <Text size="sm">{getFormattedValue(inputCache[index] || '')}</Text>
                 <br />
               </div>
             );
