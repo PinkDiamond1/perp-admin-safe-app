@@ -1,6 +1,6 @@
 {
-  "short_name": "Tx Builder",
-  "name": "Transaction Builder",
-  "description": "A Safe app to compose custom transactions",
-  "iconPath": "tx-builder.png"
+  "short_name": "perp admin",
+  "name": "Perp protocol Admin UI",
+  "description": "Admin UI for perpetual protocol",
+  "iconPath": "perp-admin.png"
 }
