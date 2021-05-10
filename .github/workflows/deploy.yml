@@ -1,0 +1,58 @@
+name: Deploy Web
+
+on:
+    release:
+        types: [created]
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+
+            - name: Set variables
+              id: set-variables
+              run: |
+                echo "::set-output name=release_env::production"
+                echo "::set-output name=aws_s3_bucket::admin.perp.exchange"
+                echo "::set-output name=aws_access_key_id::${{ secrets.AWS_ACCESS_KEY_ID_PROD }}"
+                echo "::set-output name=aws_secret_access_key::${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}"
+
+            - name: Get yarn cache directory path
+              id: yarn-cache-dir-path
+              run: echo "::set-output name=dir::$(yarn cache dir)"
+
+            - uses: actions/cache@v2
+              id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+              with:
+                path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+                key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+                restore-keys: |
+                  ${{ runner.os }}-yarn-
+
+            - name: Use Node.js 14.x
+              uses: actions/setup-node@v1
+              with:
+                  node-version: 14.x
+
+            - name: Install package dependencies
+              run: yarn
+
+            - name: Build static website
+              run: npm run build
+              env:
+                REACT_APP_RPC_TOKEN: ${{ secrets.INFURA_RPC_TOKEN }}
+                REACT_APP_STAGE: ${{ steps.set-variables.outputs.release_env }}
+                REACT_APP_GITHUB_TAG: ${{ github.event.release.tag_name }}
+
+            - name: Upload website to S3
+              uses: jakejarvis/s3-sync-action@master
+              with:
+                  args: --acl public-read --follow-symlinks --delete --cache-control 'no-store'
+              env:
+                  AWS_S3_BUCKET: ${{ steps.set-variables.outputs.aws_s3_bucket }}
+                  AWS_ACCESS_KEY_ID: ${{ steps.set-variables.outputs.aws_access_key_id }}
+                  AWS_SECRET_ACCESS_KEY: ${{ steps.set-variables.outputs.aws_secret_access_key }}
+                  AWS_REGION: "us-east-1"
+                  SOURCE_DIR: "apps/perp-admin/build"
+
