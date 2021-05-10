@@ -65,7 +65,7 @@ const formatValue = (value: any): any => {
   } else {
     try {
       const big = new Big(value);
-      return big.div(new Big(10).pow(18)).toFixed();
+      return Intl.NumberFormat('en-US').format(big.div(new Big(10).pow(18)).toNumber());
     } catch {
       return value;
     }
